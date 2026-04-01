@@ -24,8 +24,8 @@ from pydantic import BaseModel
 from typing_extensions import LiteralString
 
 from graphiti_core.cross_encoder.client import CrossEncoderClient
+from graphiti_core.cross_encoder.zai_reranker import ZAIReranker
 from graphiti_core.cross_encoder.noop_reranker import NoopReranker
-from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
 from graphiti_core.decorators import handle_multiple_group_ids
 from graphiti_core.driver.driver import GraphDriver
 from graphiti_core.driver.neo4j_driver import Neo4jDriver
