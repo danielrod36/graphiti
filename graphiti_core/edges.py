@@ -289,6 +289,9 @@ class EntityEdge(Edge):
 
         text = self.fact.replace('\n', ' ')
         self.fact_embedding = await embedder.create(input_data=[text])
+        # Guard: never store empty embeddings (prevents cosine crash)
+        if not self.fact_embedding:
+            self.fact_embedding = None
 
         end = time()
         logger.debug(
@@ -331,6 +334,9 @@ class EntityEdge(Edge):
             raise EdgeNotFoundError(self.uuid)
 
         self.fact_embedding = records[0]['fact_embedding']
+        # Guard: treat empty [] as None (prevents cosine crash)
+        if self.fact_embedding is not None and len(self.fact_embedding) == 0:
+            self.fact_embedding = None
 
     async def save(self, driver: GraphDriver):
         if driver.graph_operations_interface:
@@ -363,8 +369,13 @@ class EntityEdge(Edge):
             )
         else:
             edge_data.update(self.attributes or {})
+            # Skip vector property procedure when embedding is None
+            has_embedding = self.fact_embedding is not None and len(self.fact_embedding) > 0
             result = await driver.execute_query(
-                get_entity_edge_save_query(driver.provider),
+                get_entity_edge_save_query(
+                    driver.provider,
+                    has_aoss=not has_embedding,  # reuse has_aoss to skip vector procedure
+                ),
                 edge_data=edge_data,
             )
 
@@ -1041,4 +1052,5 @@ async def create_entity_edge_embeddings(embedder: EmbedderClient, edges: list[En
         return
     fact_embeddings = await embedder.create_batch([edge.fact for edge in filtered_edges])
     for edge, fact_embedding in zip(filtered_edges, fact_embeddings, strict=True):
-        edge.fact_embedding = fact_embedding
+        # Guard: never store empty embeddings (prevents cosine crash)
+        edge.fact_embedding = fact_embedding if fact_embedding else None

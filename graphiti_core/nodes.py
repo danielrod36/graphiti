@@ -500,6 +500,9 @@ class EntityNode(Node):
         start = time()
         text = self.name.replace('\n', ' ')
         self.name_embedding = await embedder.create(input_data=[text])
+        # Guard: never store empty embeddings (prevents vector.similarity.cosine crash)
+        if not self.name_embedding:
+            self.name_embedding = None
         end = time()
         logger.debug(
             f'embedded entity {self.uuid} name ({len(text)} chars) in {(end - start) * 1000} ms'
@@ -535,6 +538,9 @@ class EntityNode(Node):
             raise NodeNotFoundError(self.uuid)
 
         self.name_embedding = records[0]['name_embedding']
+        # Guard: treat empty [] as None (prevents cosine crash)
+        if self.name_embedding is not None and len(self.name_embedding) == 0:
+            self.name_embedding = None
 
     async def save(self, driver: GraphDriver):
         if driver.graph_operations_interface:
@@ -563,8 +569,14 @@ class EntityNode(Node):
             entity_data.update(self.attributes or {})
             labels = ':'.join(self.labels + ['Entity'])
 
+            # Skip vector property procedure when embedding is None
+            # (db.create.setNodeVectorProperty crashes on null)
+            has_embedding = self.name_embedding is not None and len(self.name_embedding) > 0
             result = await driver.execute_query(
-                get_entity_node_save_query(driver.provider, labels),
+                get_entity_node_save_query(
+                    driver.provider, labels,
+                    has_aoss=not has_embedding,  # reuse has_aoss to skip vector procedure
+                ),
                 entity_data=entity_data,
             )
 
@@ -689,15 +701,29 @@ class CommunityNode(Node):
                 'communities',
                 [{'name': self.name, 'uuid': self.uuid, 'group_id': self.group_id}],
             )
-        result = await driver.execute_query(
-            get_community_node_save_query(driver.provider),  # type: ignore
-            uuid=self.uuid,
-            name=self.name,
-            group_id=self.group_id,
-            summary=self.summary,
-            name_embedding=self.name_embedding,
-            created_at=self.created_at,
-        )
+        # Skip vector property procedure when embedding is None
+        if (self.name_embedding is None or len(self.name_embedding) == 0) and driver.provider != GraphProvider.NEPTUNE:
+            await driver.execute_query(
+                """MERGE (n:Community {uuid: $uuid})
+                SET n = {uuid: $uuid, name: $name, group_id: $group_id, summary: $summary, created_at: $created_at}
+                RETURN n.uuid AS uuid""",
+                uuid=self.uuid,
+                name=self.name,
+                group_id=self.group_id,
+                summary=self.summary,
+                created_at=self.created_at,
+            )
+            result = None
+        else:
+            result = await driver.execute_query(
+                get_community_node_save_query(driver.provider),  # type: ignore
+                uuid=self.uuid,
+                name=self.name,
+                group_id=self.group_id,
+                summary=self.summary,
+                name_embedding=self.name_embedding,
+                created_at=self.created_at,
+            )
 
         logger.debug(f'Saved Node to Graph: {self.uuid}')
 
@@ -707,6 +733,9 @@ class CommunityNode(Node):
         start = time()
         text = self.name.replace('\n', ' ')
         self.name_embedding = await embedder.create(input_data=[text])
+        # Guard: never store empty embeddings (prevents vector.similarity.cosine crash)
+        if not self.name_embedding:
+            self.name_embedding = None
         end = time()
         logger.debug(
             f'embedded entity {self.uuid} name ({len(text)} chars) in {(end - start) * 1000} ms'
@@ -744,6 +773,9 @@ class CommunityNode(Node):
             raise NodeNotFoundError(self.uuid)
 
         self.name_embedding = records[0]['name_embedding']
+        # Guard: treat empty [] as None (prevents cosine crash)
+        if self.name_embedding is not None and len(self.name_embedding) == 0:
+            self.name_embedding = None
 
     @classmethod
     async def get_by_uuid(cls, driver: GraphDriver, uuid: str):

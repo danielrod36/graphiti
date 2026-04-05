@@ -343,6 +343,9 @@ async def edge_similarity_search(
             filter_params['target_uuid'] = target_node_uuid
             filter_queries.append('m.uuid = $target_uuid')
 
+
+    # Guard: skip edges with NULL/empty embeddings (prevents cosine crash)
+    filter_queries.append('size(e.fact_embedding) > 0')
     filter_query = ''
     if filter_queries:
         filter_query = ' WHERE ' + (' AND '.join(filter_queries))
@@ -689,6 +692,9 @@ async def node_similarity_search(
     if group_ids is not None:
         filter_queries.append('n.group_id IN $group_ids')
         filter_params['group_ids'] = group_ids
+
+    # Guard: skip entities with NULL/empty embeddings (prevents cosine crash)
+    filter_queries.append('size(n.name_embedding) > 0')
 
     filter_query = ''
     if filter_queries:
@@ -1078,8 +1084,10 @@ async def community_similarity_search(
 
     group_filter_query: LiteralString = ''
     if group_ids is not None:
-        group_filter_query += ' WHERE c.group_id IN $group_ids'
+        group_filter_query += ' WHERE c.group_id IN $group_ids AND size(c.name_embedding) > 0'
         query_params['group_ids'] = group_ids
+    else:
+        group_filter_query = ' WHERE size(c.name_embedding) > 0'
 
     if driver.provider == GraphProvider.NEPTUNE:
         query = (
@@ -1275,6 +1283,9 @@ async def get_relevant_nodes(
         search_filter, driver.provider
     )
 
+    # Guard: skip entities with NULL/empty embeddings (prevents cosine crash)
+    filter_queries.append('size(n.name_embedding) > 0')
+
     filter_query = ''
     if filter_queries:
         filter_query = 'WHERE ' + (' AND '.join(filter_queries))
@@ -1417,6 +1428,9 @@ async def get_relevant_edges(
     filter_queries, filter_params = edge_search_filter_query_constructor(
         search_filter, driver.provider
     )
+
+    # Guard: skip edges with NULL/empty embeddings (prevents cosine crash)
+    filter_queries.append('size(e.fact_embedding) > 0')
 
     filter_query = ''
     if filter_queries:
@@ -1602,6 +1616,9 @@ async def get_edge_invalidation_candidates(
     filter_queries, filter_params = edge_search_filter_query_constructor(
         search_filter, driver.provider
     )
+
+    # Guard: skip edges with NULL/empty embeddings (prevents cosine crash)
+    filter_queries.append('size(e.fact_embedding) > 0')
 
     filter_query = ''
     if filter_queries:
