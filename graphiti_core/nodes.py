@@ -1042,6 +1042,13 @@ def get_entity_node_from_record(record: Any, provider: GraphProvider) -> EntityN
         attributes.pop('summary', None)
         attributes.pop('created_at', None)
         attributes.pop('labels', None)
+        # Pop custom trait/consolidation fields (not part of entity attributes)
+        attributes.pop('trait_summary', None)
+        attributes.pop('trait_confidence', None)
+        attributes.pop('trait_last_updated', None)
+        # Safety: remove any remaining non-primitive values
+        attributes = {k: v for k, v in attributes.items()
+                      if isinstance(v, (str, int, float, bool, list)) or v is None}
 
     labels = record.get('labels', [])
     group_id = record.get('group_id')

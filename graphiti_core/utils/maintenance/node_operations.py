@@ -50,7 +50,7 @@ from graphiti_core.utils.maintenance.dedup_helpers import (
     _promote_resolved_node,
     _resolve_with_similarity,
 )
-from graphiti_core.utils.text_utils import MAX_SUMMARY_CHARS, truncate_at_sentence
+from graphiti_core.utils.text_utils import MAX_SUMMARY_CHARS, truncate_at_sentence, deduplicate_summary_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -620,9 +620,18 @@ async def extract_attributes_from_nodes(
         ]
     )
 
-    # Apply attributes to nodes
+    # Apply attributes to nodes (sanitize: flatten nested dicts, remove non-primitives)
     for node, attributes in zip(nodes, attribute_results, strict=True):
-        node.attributes.update(attributes)
+        sanitized = {}
+        for k, v in attributes.items():
+            if isinstance(v, dict):
+                # Flatten nested dicts (LLM sometimes wraps fields under 'attributes' key)
+                for sub_k, sub_v in v.items():
+                    if isinstance(sub_v, (str, int, float, bool, list)) or sub_v is None:
+                        sanitized[sub_k] = sub_v
+            elif isinstance(v, (str, int, float, bool, list)) or v is None:
+                sanitized[k] = v
+        node.attributes.update(sanitized)
 
     # Extract summaries in batch
     await _extract_entity_summaries_batch(
@@ -716,6 +725,9 @@ async def _extract_entity_summaries_batch(
         if node_edges:
             edge_facts = '\n'.join(edge.fact for edge in node_edges if edge.fact)
             summary_with_edges = f'{summary_with_edges}\n{edge_facts}'.strip()
+
+        # Deduplicate before checking length (prevents repeated fact accumulation)
+        summary_with_edges = deduplicate_summary_sentences(summary_with_edges)
 
         # If summary is close to the persisted limit, use it directly (append edge facts, no LLM call)
         if summary_with_edges and len(summary_with_edges) <= MAX_SUMMARY_CHARS * 2:
@@ -812,7 +824,7 @@ async def _process_summary_flight(
     for summarized_entity in summaries_response.summaries:
         matching_nodes = name_to_nodes.get(summarized_entity.name.lower(), [])
         if matching_nodes:
-            truncated_summary = truncate_at_sentence(summarized_entity.summary, MAX_SUMMARY_CHARS)
+            truncated_summary = deduplicate_summary_sentences(truncate_at_sentence(summarized_entity.summary, MAX_SUMMARY_CHARS))
             for node in matching_nodes:
                 node.summary = truncated_summary
         else:

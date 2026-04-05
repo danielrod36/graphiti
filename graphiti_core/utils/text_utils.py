@@ -51,3 +51,54 @@ def truncate_at_sentence(text: str, max_chars: int) -> str:
 
     # No sentence boundary found, truncate at max_chars
     return truncated.rstrip()
+
+
+def deduplicate_summary_sentences(text: str) -> str:
+    """Remove duplicate sentences from a summary string.
+
+    Handles both exact and near-duplicate sentences that Graphiti
+    accumulates through repeated edge fact appending.
+
+    Args:
+        text: Summary text with potential duplicate lines.
+
+    Returns:
+        Text with duplicate lines removed, keeping first occurrence.
+    """
+    if not text:
+        return text
+
+    # Split into lines (Graphiti uses \n as separator)
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    if len(lines) <= 1:
+        return text
+
+    seen_normalized: list[str] = []
+    unique_lines: list[str] = []
+
+    for line in lines:
+        # Normalize: lowercase, collapse whitespace, strip punctuation for comparison
+        normalized = " ".join(line.lower().split())
+        normalized = normalized.rstrip(".!?;:,")
+
+        # Check against all seen lines
+        is_duplicate = False
+        for seen in seen_normalized:
+            # Exact match after normalization
+            if normalized == seen:
+                is_duplicate = True
+                break
+            # Token overlap ratio (Jaccard-like)
+            tokens_new = set(normalized.split())
+            tokens_seen = set(seen.split())
+            if tokens_new and tokens_seen:
+                overlap = len(tokens_new & tokens_seen) / min(len(tokens_new), len(tokens_seen))
+                if overlap > 0.9:
+                    is_duplicate = True
+                    break
+
+        if not is_duplicate:
+            seen_normalized.append(normalized)
+            unique_lines.append(line)
+
+    return "\n".join(unique_lines)
