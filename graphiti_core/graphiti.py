@@ -1557,6 +1557,101 @@ class Graphiti:
             driver=driver,
         )
 
+    async def search_with_expansion(
+        self,
+        query: str,
+        center_node_uuid: str | None = None,
+        group_ids: list[str] | None = None,
+        num_results: int = DEFAULT_SEARCH_LIMIT,
+        search_filter: SearchFilters | None = None,
+        driver: GraphDriver | None = None,
+    ) -> list[EntityEdge]:
+        """Search with automatic query expansion for complex multi-keyword queries.
+
+        Splits complex queries into sub-queries when the vector search might miss
+        relevant content. Each sub-query is searched independently, results are
+        deduplicated, and the original query is used for final reranking.
+
+        This addresses the "zero results for complex queries" issue where multi-keyword
+        queries like "Python error exception debugging" return nothing because the
+        vector embedding doesn't match any single entity well.
+
+        Parameters
+        ----------
+        query : str
+            The search query string.
+        center_node_uuid : str, optional
+            Facts will be reranked based on proximity to this node.
+        group_ids : list[str] | None, optional
+            The graph partitions to return data from.
+        num_results : int, optional
+            Maximum results to return. Defaults to DEFAULT_SEARCH_LIMIT.
+        search_filter : SearchFilters | None, optional
+            Filters to apply to the search.
+        driver : GraphDriver | None, optional
+            Graph driver instance.
+
+        Returns
+        -------
+        list[EntityEdge]
+            Deduplicated edges from all sub-queries, reranked against original query.
+        """
+        from graphiti_core.search.query_expansion import (
+            expand_query,
+            merge_search_results,
+            should_expand_query,
+        )
+
+        if not should_expand_query(query):
+            return await self.search(
+                query, center_node_uuid, group_ids, num_results, search_filter, driver
+            )
+
+        sub_queries = expand_query(query)
+        search_config = (
+            EDGE_HYBRID_SEARCH_RRF if center_node_uuid is None else EDGE_HYBRID_SEARCH_NODE_DISTANCE
+        )
+        search_config.limit = num_results * 2  # Over-fetch for merging
+
+        # Run sub-queries in parallel
+        all_edges = await semaphore_gather(
+            *[
+                search(
+                    self.clients,
+                    sq,
+                    group_ids,
+                    search_config,
+                    search_filter if search_filter is not None else SearchFilters(),
+                    driver=driver,
+                    center_node_uuid=center_node_uuid,
+                )
+                for sq in sub_queries
+            ],
+            max_coroutines=self.max_coroutines,
+        )
+
+        # Merge results — collect all edges, deduplicate by uuid
+        seen_uuids: set[str] = set()
+        merged_edges: list[EntityEdge] = []
+        for result in all_edges:
+            for edge in result.edges:
+                if edge.uuid not in seen_uuids:
+                    seen_uuids.add(edge.uuid)
+                    merged_edges.append(edge)
+
+        # Rerank merged results against original query using cross-encoder
+        if self.cross_encoder and merged_edges:
+            reranked = await self.cross_encoder.rank(
+                query, [e.fact for e in merged_edges]
+            )
+            # Map back to edges in reranked order
+            fact_to_edge = {e.fact: e for e in merged_edges}
+            merged_edges = [
+                fact_to_edge[fact] for fact, _ in reranked if fact in fact_to_edge
+            ]
+
+        return merged_edges[:num_results]
+
     async def get_nodes_and_edges_by_episode(self, episode_uuids: list[str]) -> SearchResults:
         episodes = await EpisodicNode.get_by_uuids(self.driver, episode_uuids)
 
