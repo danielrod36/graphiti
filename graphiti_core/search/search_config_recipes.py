@@ -105,6 +105,7 @@ COMBINED_HYBRID_SEARCH_CROSS_ENCODER = SearchConfig(
         search_methods=[CommunitySearchMethod.bm25, CommunitySearchMethod.cosine_similarity],
         reranker=CommunityReranker.cross_encoder,
     ),
+    reranker_min_score=0.3,
 )
 
 # performs a hybrid search over edges with rrf reranking
@@ -150,6 +151,7 @@ EDGE_HYBRID_SEARCH_CROSS_ENCODER = SearchConfig(
         reranker=EdgeReranker.cross_encoder,
     ),
     limit=10,
+    reranker_min_score=0.3,
 )
 
 # performs a hybrid search over nodes with rrf reranking
@@ -195,6 +197,7 @@ NODE_HYBRID_SEARCH_CROSS_ENCODER = SearchConfig(
         reranker=NodeReranker.cross_encoder,
     ),
     limit=10,
+    reranker_min_score=0.3,
 )
 
 # performs a hybrid search over communities with rrf reranking
@@ -220,4 +223,5 @@ COMMUNITY_HYBRID_SEARCH_CROSS_ENCODER = SearchConfig(
         reranker=CommunityReranker.cross_encoder,
     ),
     limit=3,
+    reranker_min_score=0.3,
 )

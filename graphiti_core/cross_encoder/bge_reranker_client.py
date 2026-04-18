@@ -31,9 +31,24 @@ else:
 from graphiti_core.cross_encoder.client import CrossEncoderClient
 
 
+DEFAULT_BGE_MODEL = 'BAAI/bge-reranker-v2-m3'
+
+
 class BGERerankerClient(CrossEncoderClient):
-    def __init__(self):
-        self.model = CrossEncoder('BAAI/bge-reranker-v2-m3')
+    def __init__(self, model: str | None = None):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        model_name = model or DEFAULT_BGE_MODEL
+        try:
+            self.model = CrossEncoder(model_name)
+        except Exception as e:
+            logger.error(f'Failed to load CrossEncoder model "{model_name}": {e}')
+            raise ImportError(
+                f'Failed to load CrossEncoder model "{model_name}". '
+                f'Ensure sentence-transformers is installed and the model name is valid. '
+                f'Original error: {e}'
+            ) from e
 
     async def rank(self, query: str, passages: list[str]) -> list[tuple[str, float]]:
         if not passages:

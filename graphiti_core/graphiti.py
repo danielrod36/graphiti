@@ -24,7 +24,6 @@ from pydantic import BaseModel
 from typing_extensions import LiteralString
 
 from graphiti_core.cross_encoder.client import CrossEncoderClient
-from graphiti_core.cross_encoder.zai_reranker import ZAIReranker
 from graphiti_core.cross_encoder.noop_reranker import NoopReranker
 from graphiti_core.decorators import handle_multiple_group_ids
 from graphiti_core.driver.driver import GraphDriver
@@ -172,7 +171,7 @@ class Graphiti:
             If not provided, a default OpenAIEmbedder will be initialized.
         cross_encoder : CrossEncoderClient | None, optional
             An instance of CrossEncoderClient for reranking tasks.
-            If not provided, a default OpenAIRerankerClient will be initialized.
+            If not provided, a NoopReranker will be used (no reranking).
         store_raw_episode_content : bool, optional
             Whether to store the raw content of episodes. Defaults to True.
         graph_driver : GraphDriver | None, optional
