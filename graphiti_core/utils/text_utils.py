@@ -14,7 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from __future__ import annotations
+
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from graphiti_core.nodes import EpisodicNode
 
 # Maximum length for entity/community summaries
 MAX_SUMMARY_CHARS = 1000
@@ -53,6 +59,22 @@ def truncate_at_sentence(text: str, max_chars: int) -> str:
     return truncated.rstrip()
 
 
+def concatenate_episodes(episodes: list[EpisodicNode]) -> str:
+    """Concatenate episode contents with enumerated headers.
+
+    When given a single episode, returns its content as-is.
+    When given multiple episodes, each is prefixed with an ``[Episode N]``
+    header so the LLM can distinguish where one ends and the next begins.
+    """
+    if len(episodes) == 1:
+        return episodes[0].content
+    parts: list[str] = []
+    for i, ep in enumerate(episodes):
+        timestamp = ep.valid_at.isoformat() if ep.valid_at else 'unknown'
+        parts.append(f'[Episode {i}] (timestamp: {timestamp})\n{ep.content}')
+    return '\n\n'.join(parts)
+
+
 def deduplicate_summary_sentences(text: str) -> str:
     """Remove duplicate sentences from a summary string.
 
@@ -69,7 +91,7 @@ def deduplicate_summary_sentences(text: str) -> str:
         return text
 
     # Split into lines (Graphiti uses \n as separator)
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
     if len(lines) <= 1:
         return text
 
@@ -78,8 +100,8 @@ def deduplicate_summary_sentences(text: str) -> str:
 
     for line in lines:
         # Normalize: lowercase, collapse whitespace, strip punctuation for comparison
-        normalized = " ".join(line.lower().split())
-        normalized = normalized.rstrip(".!?;:,")
+        normalized = ' '.join(line.lower().split())
+        normalized = normalized.rstrip('.!?;:,')
 
         # Check against all seen lines
         is_duplicate = False
@@ -101,4 +123,4 @@ def deduplicate_summary_sentences(text: str) -> str:
             seen_normalized.append(normalized)
             unique_lines.append(line)
 
-    return "\n".join(unique_lines)
+    return '\n'.join(unique_lines)

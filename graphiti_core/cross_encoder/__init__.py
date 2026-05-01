@@ -14,7 +14,7 @@ __all__ = [
 
 # Optional imports — only available if dependencies are installed
 try:
-    from .gemini_reranker_client import GeminiRerankerClient  # requires google-genai
+    from .gemini_reranker_client import GeminiRerankerClient  # noqa: F401
 
     __all__.append('GeminiRerankerClient')
 except ImportError:

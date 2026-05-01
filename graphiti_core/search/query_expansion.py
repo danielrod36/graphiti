@@ -6,9 +6,8 @@ might miss relevant content. Each sub-query is searched independently,
 candidates are merged, and the original query is used for final reranking.
 """
 
-import re
 import logging
-from typing import Any
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +74,27 @@ def expand_query(query: str) -> list[str]:
 
     # Also create bigram sub-queries (skip function words)
     words = query.split()
-    stopwords = {'and', 'or', 'with', 'for', 'in', 'using', 'on', 'from', 'the', 'a', 'an', 'to', 'of'}
+    stopwords = {
+        'and',
+        'or',
+        'with',
+        'for',
+        'in',
+        'using',
+        'on',
+        'from',
+        'the',
+        'a',
+        'an',
+        'to',
+        'of',
+    }
     if len(words) >= 4:
         for i in range(len(words) - 1):
             # Skip bigrams that are entirely stopwords
-            if words[i].lower() in stopwords or words[i+1].lower() in stopwords:
+            if words[i].lower() in stopwords or words[i + 1].lower() in stopwords:
                 continue
-            bigram = f"{words[i]} {words[i+1]}"
+            bigram = f'{words[i]} {words[i + 1]}'
             if bigram.lower() not in [sq.lower() for sq in sub_queries]:
                 sub_queries.append(bigram)
 

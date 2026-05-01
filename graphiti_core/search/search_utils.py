@@ -343,7 +343,6 @@ async def edge_similarity_search(
             filter_params['target_uuid'] = target_node_uuid
             filter_queries.append('m.uuid = $target_uuid')
 
-
     # Guard: skip edges with NULL/empty embeddings (prevents cosine crash)
     filter_queries.append('size(e.fact_embedding) > 0')
     filter_query = ''

@@ -74,6 +74,7 @@ class EpisodeType(Enum):
     message = 'message'
     json = 'json'
     text = 'text'
+    fact_triple = 'fact_triple'
 
     @staticmethod
     def from_str(episode_type: str):
@@ -83,6 +84,8 @@ class EpisodeType(Enum):
             return EpisodeType.json
         if episode_type == 'text':
             return EpisodeType.text
+        if episode_type == 'fact_triple':
+            return EpisodeType.fact_triple
         logger.error(f'Episode type: {episode_type} not implemented')
         raise NotImplementedError
 
@@ -322,6 +325,10 @@ class EpisodicNode(Node):
     entity_edges: list[str] = Field(
         description='list of entity edges referenced in this episode',
         default_factory=list,
+    )
+    episode_metadata: dict[str, Any] | None = Field(
+        description='customer-defined metadata key-value pairs for filtering',
+        default=None,
     )
 
     async def save(self, driver: GraphDriver):
@@ -566,7 +573,9 @@ class EntityNode(Node):
                 **entity_data,
             )
         else:
-            entity_data.update(self.attributes or {})
+            for k, v in (self.attributes or {}).items():
+                if k not in entity_data:
+                    entity_data[k] = v
             labels = ':'.join(self.labels + ['Entity'])
 
             # Skip vector property procedure when embedding is None
@@ -574,7 +583,8 @@ class EntityNode(Node):
             has_embedding = self.name_embedding is not None and len(self.name_embedding) > 0
             result = await driver.execute_query(
                 get_entity_node_save_query(
-                    driver.provider, labels,
+                    driver.provider,
+                    labels,
                     has_aoss=not has_embedding,  # reuse has_aoss to skip vector procedure
                 ),
                 entity_data=entity_data,
@@ -610,10 +620,12 @@ class EntityNode(Node):
         return nodes[0]
 
     @classmethod
-    async def get_by_uuids(cls, driver: GraphDriver, uuids: list[str]):
+    async def get_by_uuids(cls, driver: GraphDriver, uuids: list[str], group_id: str | None = None):
         if driver.graph_operations_interface:
             try:
-                return await driver.graph_operations_interface.node_get_by_uuids(cls, driver, uuids)
+                return await driver.graph_operations_interface.node_get_by_uuids(
+                    cls, driver, uuids, group_id
+                )
             except NotImplementedError:
                 pass
 
@@ -702,7 +714,9 @@ class CommunityNode(Node):
                 [{'name': self.name, 'uuid': self.uuid, 'group_id': self.group_id}],
             )
         # Skip vector property procedure when embedding is None
-        if (self.name_embedding is None or len(self.name_embedding) == 0) and driver.provider != GraphProvider.NEPTUNE:
+        if (
+            self.name_embedding is None or len(self.name_embedding) == 0
+        ) and driver.provider != GraphProvider.NEPTUNE:
             await driver.execute_query(
                 """MERGE (n:Community {uuid: $uuid})
                 SET n = {uuid: $uuid, name: $name, group_id: $group_id, summary: $summary, created_at: $created_at}
@@ -1079,8 +1093,11 @@ def get_entity_node_from_record(record: Any, provider: GraphProvider) -> EntityN
         attributes.pop('trait_confidence', None)
         attributes.pop('trait_last_updated', None)
         # Safety: remove any remaining non-primitive values
-        attributes = {k: v for k, v in attributes.items()
-                      if isinstance(v, (str, int, float, bool, list)) or v is None}
+        attributes = {
+            k: v
+            for k, v in attributes.items()
+            if isinstance(v, (str, int, float, bool, list)) or v is None
+        }
 
     labels = record.get('labels', [])
     group_id = record.get('group_id')

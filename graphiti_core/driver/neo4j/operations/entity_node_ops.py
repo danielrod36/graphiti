@@ -50,11 +50,15 @@ class Neo4jEntityNodeOperations(EntityNodeOperations):
         entity_data.update(node.attributes or {})
         # Debug: log attribute types
         import logging as _log
+
         for k, v in (node.attributes or {}).items():
             if not isinstance(v, (str, int, float, bool, list, type(None))):
                 _log.getLogger(__name__).warning(
-                    'Non-primitive attribute on %s: %s=%s (%s)', 
-                    node.name, k, str(v)[:100], type(v).__name__
+                    'Non-primitive attribute on %s: %s=%s (%s)',
+                    node.name,
+                    k,
+                    str(v)[:100],
+                    type(v).__name__,
                 )
                 entity_data.pop(k, None)
         labels = ':'.join(list(set(node.labels + ['Entity'])))
@@ -87,8 +91,11 @@ class Neo4jEntityNodeOperations(EntityNodeOperations):
                 'labels': list(set(node.labels + ['Entity'])),
             }
             # Filter out non-primitive values that Neo4j can't store
-            attrs = {k: v for k, v in (node.attributes or {}).items()
-                     if isinstance(v, (str, int, float, bool, list)) or v is None}
+            attrs = {
+                k: v
+                for k, v in (node.attributes or {}).items()
+                if isinstance(v, (str, int, float, bool, list)) or v is None
+            }
             entity_data.update(attrs)
             prepared.append(entity_data)
 

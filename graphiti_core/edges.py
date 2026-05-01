@@ -368,7 +368,9 @@ class EntityEdge(Edge):
                 **edge_data,
             )
         else:
-            edge_data.update(self.attributes or {})
+            for k, v in (self.attributes or {}).items():
+                if k not in edge_data:
+                    edge_data[k] = v
             # Skip vector property procedure when embedding is None
             has_embedding = self.fact_embedding is not None and len(self.fact_embedding) > 0
             result = await driver.execute_query(

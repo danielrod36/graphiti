@@ -6,7 +6,7 @@ from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
-from .config import DEFAULT_MAX_TOKENS, LLMConfig, ModelSize
+from .config import DEFAULT_MAX_TOKENS, LLMConfig
 from .openai_base_client import BaseOpenAIClient
 
 DEFAULT_MODEL = 'mistral-small-latest'
@@ -110,22 +110,22 @@ class MistralClient(BaseOpenAIClient):
         return response
 
     def _handle_structured_response(self, response):
-        content_str = response.choices[0].message.content or ""
+        content_str = response.choices[0].message.content or ''
         input_tokens = 0
         output_tokens = 0
-        if hasattr(response, "usage") and response.usage:
-            input_tokens = getattr(response.usage, "prompt_tokens", 0) or 0
-            output_tokens = getattr(response.usage, "completion_tokens", 0) or 0
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
+            output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
         if content_str:
             return json.loads(content_str), input_tokens, output_tokens
         else:
-            raise Exception(f"Invalid response from Mistral: {response}")
+            raise Exception(f'Invalid response from Mistral: {response}')
 
     def _handle_json_response(self, response):
-        content_str = response.choices[0].message.content or "{}"
+        content_str = response.choices[0].message.content or '{}'
         input_tokens = 0
         output_tokens = 0
-        if hasattr(response, "usage") and response.usage:
-            input_tokens = getattr(response.usage, "prompt_tokens", 0) or 0
-            output_tokens = getattr(response.usage, "completion_tokens", 0) or 0
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = getattr(response.usage, 'prompt_tokens', 0) or 0
+            output_tokens = getattr(response.usage, 'completion_tokens', 0) or 0
         return json.loads(content_str), input_tokens, output_tokens

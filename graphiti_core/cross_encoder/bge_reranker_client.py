@@ -30,7 +30,6 @@ else:
 
 from graphiti_core.cross_encoder.client import CrossEncoderClient
 
-
 DEFAULT_BGE_MODEL = 'BAAI/bge-reranker-v2-m3'
 
 
